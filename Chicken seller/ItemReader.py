@@ -1,11 +1,11 @@
 import numpy as np
+import time
 import sys,os
-import Classes as Cl
 import xlrd
 import xlwt
 from xlutils.copy import copy
+
 import Classes as Cl
-import time
 import SizeAdjuster as Sa
 
 
@@ -46,7 +46,7 @@ def FindColumnLength(FileRb,SheetName):
     
     return len(Column)    
 
-def MakeItemList(FileName="Data",SheetName="ItemSheet2",IdSheetName="FilteredIdSheet"):
+def MakeItemList(ParameterList,FileName="Data",SheetName="ItemSheet3",IdSheetName="FilteredIdSheet"):
     
     #Finds file
     Path = MakePath(FileName,"xls")
@@ -65,36 +65,42 @@ def MakeItemList(FileName="Data",SheetName="ItemSheet2",IdSheetName="FilteredIdS
         ItemSheet = Sa.FitSheetWrapper(GetSheet(FileRb,FileWb,SheetName))
         ColumnLength = FindColumnLength(FileRb,SheetName)
     
-    #Creates header        
-    Item = Cl.Item(NameList[1],str(UrlList[1]),1)  
-    for j in range(len(Item.NameList)):
-        ItemSheet.write(0,j,Item.NameList[j])
+    #Creates header
+    ItemSheet.write(0,0,"Item")    
+    for j in range(len(ParameterList)):
+        ItemSheet.write(0,j+1,ParameterList[j].Name)
         
     Counter = 0
-    
-    #Loops through the items
+    #Loops through the IdSheet to create Item objects
     for i in range(ColumnLength,len(UrlList)):
         
-        #Initialize item
+        #while loop is used to bypass host closing connection
         while(True):
             try:
+                #If the BuyLimit cell is empt, assume it is 1
                 if(BuyLimitList[i] == ""):
-                    BuyLimit = 1
+                    BuyLimit = 1 
+                    
+                #If BuyLimit isn't empty, retrieve it from cell
                 else:
                     BuyLimit = int(float(str(BuyLimitList[i]).replace(",","")))
                     
-                Item = Cl.Item(NameList[i],str(UrlList[i]),BuyLimit)
+                
+                Item = Cl.Item(NameList[i],str(UrlList[i]),BuyLimit,ParameterList)
                 #time.sleep(4)
                 break
+                
+            #If Host closes connection, try again after 3 seconds
             except:
                 print("Item creation failed. Retrying...")
                 time.sleep(3) 
         
         print(Item.Name+"["+str(i)+"/"+str(len(UrlList))+"]")
         
-        #Loop through item variables
+        #Loop through item Parameters and writes down the values in excel file
+        ItemSheet.write(i,0,Item.Name,Cl.StyleNormal)
         for k in range(len(Item.ValueList)):
-            ItemSheet.write(i,k,str(Item.ValueList[k]),Item.StyleList[k])
+            ItemSheet.write(i,k+1,str(Item.ValueList[k]),Item.StyleList[k])
     
         #Save after every 10 items
         if(Counter >= 10):
@@ -111,6 +117,8 @@ def MakeItemList(FileName="Data",SheetName="ItemSheet2",IdSheetName="FilteredIdS
     
 #-----Main-----#
 
-MakeItemList()
+ParameterList = [Cl.CurrentPrice,Cl.W1Slope,Cl.Average,Cl.CompToAverage,Cl.MaxProfit,Cl.Periodicity]
+
+MakeItemList(ParameterList)
 
 #-----Main-----#

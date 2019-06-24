@@ -46,64 +46,38 @@ def MakeItemUrl(Id,Name):
 
 #-----ItemClass-----#
 class Item:
-    def __init__(self,Name,Url,BuyLimit):
+    def __init__(self,Name,Url,BuyLimit,ParameterList):
         self.BuyLimit = BuyLimit
         self.Name = Name
         self.Url = Url
+        self.ParameterList = ParameterList
         self.Price = GetPriceList(Url)
-        self.CurrentPrice = self.Price[-1]
-        self.Rise = self.Price[-1]-self.Price[-2]
-        self.D3Rise = self.Price[-1]-self.Price[-4]
-        self.W1Rise = self.Price[-1]-self.Price[-8]
-        self.M1Rise = self.Price[-1]-self.Price[-31]
-        self.Average = int(round(np.average(self.Price),0))
-        self.CompToAverage = int(round(self.CurrentPrice - self.Average,0))
-        self.MaxProfit,self.MaxLoss = self.CalcMaxProfit(self.Price)
-        self.Periodicity = round(np.amin([self.MaxProfit,self.MaxLoss]) / self.Average,2)
-        self.Slope = round(self.LineFit(self.Price) / self.Average,2)
-        self.CreateLists()
-        
-        
-    def CalcMaxProfit(self,PriceList):
-        MaxProfit = 0
-        MaxLoss = 0
-        for i in range(len(PriceList)-1):
-            DeltaPrice = PriceList[i+1]-PriceList[i]
-            if(DeltaPrice > 0):
-                MaxProfit += DeltaPrice
-            if(DeltaPrice < 0):
-                MaxLoss -= DeltaPrice
-                
-        return MaxProfit,MaxLoss
 
-    def LineFit(self,Price):
-        t = range(len(Price))
-        Parameters = np.polyfit(t,Price,1)
-        return Parameters[0]*len(Price)
+        self.CreateLists() #Unpacks information in ParameterList
+        
         
     def HighLow(Bool):
         if(Bool):
             return "Higher than average"
         return "Lower than average"
         
-    def RG(self,Value):
-        
-        if(Value > 0):
-            return StyleGreen
-        if(Value < 0):
-            return StyleRed
-        return StyleBlue
             
-    
+    #Unpacks the information in ParameterList
     def CreateLists(self):
-        self.NameList = ["Name","Price","Change[1d]","Average","Price-Average","MaxProfit","Periodicity","Slope",
-        "BuyLimit"]
-        self.ValueList = [self.Name,self.CurrentPrice,self.Rise,self.Average,self.CompToAverage,self.MaxProfit,
-        self.Periodicity,self.Slope,self.BuyLimit]
-        self.StyleList = [StyleNormal,StyleNormal,self.RG(self.Rise),StyleNormal,self.RG(self.CompToAverage),
-        StyleNormal,StyleNormal,self.RG(self.Slope),StyleNormal]
         
-
+        self.NameList = []
+        self.ValueList = []
+        self.StyleList = []
+        
+        for Parameter in self.ParameterList:
+            self.NameList.append(Parameter.Name)
+            
+            Value = Parameter.ParmFunc(self.Price,self.BuyLimit)
+            self.ValueList.append(Value)
+            
+            Style = Parameter.StyleFunc(Value)
+            self.StyleList.append(Style)
+            
 #-----ItemClass-----#
 
 
@@ -121,37 +95,131 @@ class Purchase:
 
 
 #-----ParameterClass-----#
+
 #A parameter is a property of an item, for example it's 6-month average
 #ParmFunc is a function that calculates the value of the property
+#StyleFunc is a function that determines the excel style of the cell the value is in (red or green etc.)
 class Parameter:
-    def __init__(self,Name,ParmFunc):
+    def __init__(self,Name,ParmFunc,StyleFunc):
         self.Name = Name
         self.ParmFunc = ParmFunc
-
+        self.StyleFunc = StyleFunc
 
 
 #-----ParameterClass-----#
 
 
-#Hello there
 
-#ArmaBoots = Item("ArmaBoots","http://services.runescape.com/m=itemdb_rs/Armadyl_boots/viewitem?obj=25010")
-#ArmaBuckler = Item("ArmaBuckler","http://services.runescape.com/m=itemdb_rs/Armadyl_buckler/viewitem?obj=25013")
-#ArmaGloves = Item("ArmaGloves","http://services.runescape.com/m=itemdb_rs/Armadyl_gloves/viewitem?obj=25016")
-#SoftClay = Item("SoftClay","http://services.runescape.com/m=itemdb_rs/Soft_clay/viewitem?obj=1761")
-#RawBird = Item("Rawbird","http://services.runescape.com/m=itemdb_rs/Raw_bird_meat/viewitem?obj=9978")
-#BloodNecklace = Item("BloodNecklace","http://services.runescape.com/m=itemdb_rs/Blood_necklace_shard/viewitem?obj=32692")
-#Cinderbane = Item("Cinderbane","http://services.runescape.com/m=itemdb_rs/Cinderbane_gloves/viewitem?obj=41106")
-#Bond = Item("Bond","http://services.runescape.com/m=itemdb_rs/Bond/viewitem?obj=29492")
-#Zaryte = Item("Zaryte","http://services.runescape.com/m=itemdb_rs/Zaryte_bow/viewitem?obj=20171")
-#SubGown = Item("SubGown","http://services.runescape.com/m=itemdb_rs/Gown_of_subjugation/viewitem?obj=24998")
-#SubGarb = Item("SubGarb","http://services.runescape.com/m=itemdb_rs/Garb_of_subjugation/viewitem?obj=24995")
-#ArmaStaff = Item("ArmaStaff","http://services.runescape.com/m=itemdb_rs/Armadyl_battlestaff/viewitem?obj=21777")
-#AirRune = Item("AirRune","http://services.runescape.com/m=itemdb_rs/Air_rune/viewitem?obj=556")
-#FireRune = Item("FireRune","http://services.runescape.com/m=itemdb_rs/Fire_rune/viewitem?obj=554")
-#ItemList = [ArmaBoots,ArmaBuckler,ArmaGloves,SoftClay,RawBird,BloodNecklace,Cinderbane,Bond,Zaryte,
-#SubGown,SubGarb,ArmaStaff,AirRune,FireRune]
-#BoughtList = []
+#-----StyleFunctions-----#
+#Examples of stylefunctions
+
+#Returns a green style when value > 0, returns a red style when value < 0
+def RedGreenStyle(Value):
+        
+    if(Value > 0):
+        return StyleGreen
+    if(Value < 0):
+        return StyleRed
+    return StyleBlue
+
+#Returns the default excel style with borders
+def NormalStyle(Value):
+    return StyleNormal
+
+
+#-----StyleFunctions-----#
+
+#-----ParameterExamples-----#
+
+#Some example parameters that can be used
+#Each parameter is equivalent to a row in the 'ItemSheet' sheet
+
+
+#Creates a function that gives the price rise of an item over "Period" amount of days
+def CreateRiseFunction(Period):
+    return lambda Price,BuyLimit : Price[-1] - Price[-1-Period]
+
+#Creates a Parameter that gives the price rise of an item over "Period" amount of days
+def CreateRiseParameter(Name,Period,Style):
+    return Parameter(Name,CreateRiseFunction(Period),Style)
+
+#Does a linefit over "Period" amount of days and returns the slope times a constant
+def LineFit(Price,Period):
+    t = range(len(Price[(-1-Period):]))
+    Parameters = np.polyfit(t,Price[(-1-Period):],1)
+    return Parameters[0]*len(Price) #len(price) is the amount of days in 6 months(constant)
+
+
+#Creates a function that gives the price rise of an item over "Period" amount of days
+def CreateSlopeFunction(Period):
+    return lambda Price,BuyLimit : round(LineFit(Price,Period) / GetAverage(Price),2)
+
+
+#Creates a Parameter that gives slope of an item over "Period" amount of days
+def CreateSlopeParameter(Name,Period,Style):
+    return Parameter(Name,CreateSlopeFunction(Period),Style)
+
+
+#Function that finds the current price of an item
+def GetCurrentPrice(Price,BuyLimit=1):
+    return Price[-1]  
+      
+#Function that calculates the average price over 6 months  
+def GetAverage(Price,BuyLimit=1):
+    return int(round(np.average(Price),0))
+
+#Function that calculates the difference between the current price and average price
+def GetCompToAverage(Price,BuyLimit=1):
+    return int(round(GetCurrentPrice(Price) - GetAverage(Price),0))
+
+#Function that finds the maximum profit that could be made
+def GetMaxProfit(Price,BuyLimit):
+    InvestedItems = 0
+    InvestedMoney = 0
+    MaxProfit = 0
+    
+    for i in range(len(Price)):
+        if(Price[i] < np.amax(Price[i:])-0.1):
+            InvestedItems += 6*BuyLimit
+            InvestedMoney += 6*BuyLimit*Price[i]
+            
+        else:
+            MaxProfit += InvestedItems * Price[i] - InvestedMoney
+            InvestedItems = 0
+            InvestedMoney = 0
+            
+    return MaxProfit
+    
+    
+def GetPeriodicity(Price,BuyLimit=1):
+        TotalUp = 0
+        TotalDown = 0
+        for i in range(len(Price)-1):
+            DeltaPrice = Price[i+1]-Price[i]
+            if(DeltaPrice > 0):
+                TotalUp += DeltaPrice
+            if(DeltaPrice < 0):
+                TotalDown -= DeltaPrice
+                
+        return round(np.amin([TotalUp,TotalDown]) / GetAverage(Price),2)
+
+
+CurrentPrice = Parameter("CurrentPrice",GetCurrentPrice,NormalStyle)
+Average = Parameter("Average",GetAverage,NormalStyle)
+CompToAverage = Parameter("CompToAverage",GetCompToAverage,RedGreenStyle)
+MaxProfit = Parameter("MaxProfit",GetMaxProfit,NormalStyle)
+Periodicity = Parameter("Periodicity",GetPeriodicity,NormalStyle)
+D1Rise = CreateRiseParameter("D1Rise",1,RedGreenStyle)
+D3Rise = CreateRiseParameter("D3Rise",3,RedGreenStyle)
+W1Rise = CreateRiseParameter("W1Rise",7,RedGreenStyle)
+M1Rise = CreateRiseParameter("M1Rise",30,RedGreenStyle)
+D1Slope = CreateSlopeParameter("D1Slope",1,RedGreenStyle)
+D3Slope = CreateSlopeParameter("D3Slope",3,RedGreenStyle)
+W1Slope = CreateSlopeParameter("W1Slope",7,RedGreenStyle)
+M1Slope = CreateSlopeParameter("M1Slope",30,RedGreenStyle)
+
+#-----ParameterExamples-----#
+
 
 
             
