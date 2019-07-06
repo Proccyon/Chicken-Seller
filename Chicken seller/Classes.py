@@ -4,7 +4,6 @@ from contextlib import closing
 from bs4 import BeautifulSoup
 import matplotlib.pyplot as plt
 import numpy as np
-from GetPrice import GetPriceList
 import xlwt
 
 #-----GlobalVariables-----#
@@ -46,12 +45,11 @@ def MakeItemUrl(Id,Name):
 
 #-----ItemClass-----#
 class Item:
-    def __init__(self,Name,Url,BuyLimit,ParameterList):
-        self.BuyLimit = BuyLimit
+    def __init__(self,Name,PriceList,BuyLimit,ParameterList):
         self.Name = Name
-        self.Url = Url
+        self.BuyLimit = int(BuyLimit)
+        self.PriceList = PriceList
         self.ParameterList = ParameterList
-        self.Price = GetPriceList(Url)
 
         self.CreateLists() #Unpacks information in ParameterList
         
@@ -68,12 +66,14 @@ class Item:
         self.NameList = []
         self.ValueList = []
         self.StyleList = []
+        self.ValueDict = {}
         
         for Parameter in self.ParameterList:
             self.NameList.append(Parameter.Name)
             
-            Value = Parameter.ParmFunc(self.Price,self.BuyLimit)
+            Value = Parameter.ParmFunc(self.PriceList,self.BuyLimit)
             self.ValueList.append(Value)
+            self.ValueDict[Parameter.Name] = Value
             
             Style = Parameter.StyleFunc(Value)
             self.StyleList.append(Style)
@@ -87,7 +87,7 @@ class Purchase:
         self.Item = Item
         self.Amount = Amount
         self.BoughtPrice = BoughtPrice
-        self.Profit = Amount*(Item.Price[-1]-BoughtPrice)
+        self.Profit = Amount*(Item.PriceList[-1]-BoughtPrice)
 
 #-----PurchaseClass-----#
 
@@ -99,6 +99,8 @@ class Purchase:
 #A parameter is a property of an item, for example it's 6-month average
 #ParmFunc is a function that calculates the value of the property
 #StyleFunc is a function that determines the excel style of the cell the value is in (red or green etc.)
+
+
 class Parameter:
     def __init__(self,Name,ParmFunc,StyleFunc):
         self.Name = Name
@@ -137,22 +139,22 @@ def NormalStyle(Value):
 
 #Creates a function that gives the price rise of an item over "Period" amount of days
 def CreateRiseFunction(Period):
-    return lambda Price,BuyLimit : Price[-1] - Price[-1-Period]
+    return lambda PriceList,BuyLimit : PriceList[-1] - PriceList[-1-Period]
 
 #Creates a Parameter that gives the price rise of an item over "Period" amount of days
 def CreateRiseParameter(Name,Period,Style):
     return Parameter(Name,CreateRiseFunction(Period),Style)
 
 #Does a linefit over "Period" amount of days and returns the slope times a constant
-def LineFit(Price,Period):
-    t = range(len(Price[(-1-Period):]))
-    Parameters = np.polyfit(t,Price[(-1-Period):],1)
-    return Parameters[0]*len(Price) #len(price) is the amount of days in 6 months(constant)
+def LineFit(PriceList,Period):
+    t = range(len(PriceList[(-1-Period):]))
+    Parameters = np.polyfit(t,PriceList[(-1-Period):],1)
+    return Parameters[0]*len(PriceList)   #len(price) is the amount of days in 6 months(constant)
 
 
 #Creates a function that gives the price rise of an item over "Period" amount of days
 def CreateSlopeFunction(Period):
-    return lambda Price,BuyLimit : round(LineFit(Price,Period) / GetAverage(Price),2)
+    return lambda PriceList,BuyLimit : round(LineFit(PriceList,Period) / GetAverage(PriceList),2)
 
 
 #Creates a Parameter that gives slope of an item over "Period" amount of days
@@ -161,47 +163,47 @@ def CreateSlopeParameter(Name,Period,Style):
 
 
 #Function that finds the current price of an item
-def GetCurrentPrice(Price,BuyLimit=1):
-    return Price[-1]  
+def GetCurrentPrice(PriceList,BuyLimit=1):
+    return PriceList[-1]  
       
 #Function that calculates the average price over 6 months  
-def GetAverage(Price,BuyLimit=1):
-    return int(round(np.average(Price),0))
+def GetAverage(PriceList,BuyLimit=1):
+    return int(round(np.average(PriceList),0))
 
 #Function that calculates the difference between the current price and average price
-def GetCompToAverage(Price,BuyLimit=1):
-    return int(round(GetCurrentPrice(Price) - GetAverage(Price),0))
+def GetCompToAverage(PriceList,BuyLimit=1):
+    return int(round(GetCurrentPrice(PriceList) - GetAverage(PriceList),0))
 
 #Function that finds the maximum profit that could be made
-def GetMaxProfit(Price,BuyLimit):
+def GetMaxProfit(PriceList,BuyLimit):
     InvestedItems = 0
     InvestedMoney = 0
     MaxProfit = 0
     
-    for i in range(len(Price)):
-        if(Price[i] < np.amax(Price[i:])-0.1):
+    for i in range(len(PriceList)):
+        if(PriceList[i] < np.amax(PriceList[i:])-0.1):
             InvestedItems += 6*BuyLimit
-            InvestedMoney += 6*BuyLimit*Price[i]
+            InvestedMoney += 6*BuyLimit*PriceList[i]
             
         else:
-            MaxProfit += InvestedItems * Price[i] - InvestedMoney
+            MaxProfit += InvestedItems * PriceList[i] - InvestedMoney
             InvestedItems = 0
             InvestedMoney = 0
             
     return MaxProfit
     
     
-def GetPeriodicity(Price,BuyLimit=1):
+def GetPeriodicity(PriceList,BuyLimit=1):
         TotalUp = 0
         TotalDown = 0
-        for i in range(len(Price)-1):
-            DeltaPrice = Price[i+1]-Price[i]
+        for i in range(len(PriceList)-1):
+            DeltaPrice = PriceList[i+1]-PriceList[i]
             if(DeltaPrice > 0):
                 TotalUp += DeltaPrice
             if(DeltaPrice < 0):
                 TotalDown -= DeltaPrice
                 
-        return round(np.amin([TotalUp,TotalDown]) / GetAverage(Price),2)
+        return round(np.amin([TotalUp,TotalDown]) / GetAverage(PriceList),2)
 
 
 CurrentPrice = Parameter("CurrentPrice",GetCurrentPrice,NormalStyle)

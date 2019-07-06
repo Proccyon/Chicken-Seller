@@ -7,7 +7,7 @@ from xlutils.copy import copy
 
 import Classes as Cl
 import SizeAdjuster as Sa
-
+from GetPrice import GetPriceList
 
 #Reads the price of all items in the filtered id list and puts it into excel sheet
 
@@ -46,61 +46,63 @@ def FindColumnLength(FileRb,SheetName):
     
     return len(Column)    
 
-def MakeItemList(ParameterList,FileName="Data",SheetName="ItemSheet3",IdSheetName="FilteredIdSheet"):
+def MakeItemList(FileName="Data",SheetName="UnfilteredPriceSheet",IdSheetName="IdSheet"):
     
     #Finds file
     Path = MakePath(FileName,"xls")
     FileWb,FileRb = ReadExcel(Path)
     NameList, UrlList,BuyLimitList = GetUrlList(FileName,IdSheetName)
 
-    #Change colours to a lighter version
-    FileWb.set_colour_RGB(0x0A, 255, 80, 80)# Red
-    FileWb.set_colour_RGB(0x11, 86, 160, 61)# Green
 
     #Finds the sheet or create new one if empty
     if(GetSheet(FileRb,FileWb,SheetName) == None):
-        ItemSheet = Sa.FitSheetWrapper(FileWb.add_sheet(SheetName))
+        PriceSheet = Sa.FitSheetWrapper(FileWb.add_sheet(SheetName))
         ColumnLength = 1
     else:
-        ItemSheet = Sa.FitSheetWrapper(GetSheet(FileRb,FileWb,SheetName))
+        PriceSheet = Sa.FitSheetWrapper(GetSheet(FileRb,FileWb,SheetName))
         ColumnLength = FindColumnLength(FileRb,SheetName)
     
+    
     #Creates header
-    ItemSheet.write(0,0,"Item")    
-    for j in range(len(ParameterList)):
-        ItemSheet.write(0,j+1,ParameterList[j].Name)
+    PriceSheet.write(0,0,"Item")
+    PriceSheet.write(0,1,"BuyLimit")    
+    for j in range(177):
+        PriceSheet.write(0,j+2,"Price d"+str(j))
         
     Counter = 0
     #Loops through the IdSheet to create Item objects
     for i in range(ColumnLength,len(UrlList)):
         
+        
+        #If the BuyLimit cell is empt, assume it is 1
+        if(BuyLimitList[i] == ""):
+            BuyLimit = 1 
+                    
+        #If BuyLimit isn't empty, retrieve it from cell
+        else:
+            BuyLimit = int(float(str(BuyLimitList[i]).replace(",","")))
+        
+
         #while loop is used to bypass host closing connection
         while(True):
-            try:
-                #If the BuyLimit cell is empt, assume it is 1
-                if(BuyLimitList[i] == ""):
-                    BuyLimit = 1 
-                    
-                #If BuyLimit isn't empty, retrieve it from cell
-                else:
-                    BuyLimit = int(float(str(BuyLimitList[i]).replace(",","")))
-                    
                 
-                Item = Cl.Item(NameList[i],str(UrlList[i]),BuyLimit,ParameterList)
-                #time.sleep(4)
-                break
-                
-            #If Host closes connection, try again after 3 seconds
-            except:
+            PriceList = GetPriceList(str(UrlList[i]))
+            
+            #Pricelist is empty list if host closes connection, keep trying till it works
+            if(PriceList == []):
                 print("Item creation failed. Retrying...")
                 time.sleep(3) 
+            else:
+                break                
+                                                    
         
-        print(Item.Name+"["+str(i)+"/"+str(len(UrlList))+"]")
+        print("{} [{}/{}]".format(NameList[i],i,len(UrlList)))
+    
+        PriceSheet.write(i,0,NameList[i],Cl.StyleNormal)
+        PriceSheet.write(i,1,str(BuyLimit),Cl.StyleNormal)
         
-        #Loop through item Parameters and writes down the values in excel file
-        ItemSheet.write(i,0,Item.Name,Cl.StyleNormal)
-        for k in range(len(Item.ValueList)):
-            ItemSheet.write(i,k+1,str(Item.ValueList[k]),Item.StyleList[k])
+        for k in range(len(PriceList)):
+            PriceSheet.write(i,k+2,str(PriceList[k]),Cl.StyleNormal)
     
         #Save after every 10 items
         if(Counter >= 10):
@@ -117,8 +119,8 @@ def MakeItemList(ParameterList,FileName="Data",SheetName="ItemSheet3",IdSheetNam
     
 #-----Main-----#
 
-ParameterList = [Cl.CurrentPrice,Cl.W1Slope,Cl.Average,Cl.CompToAverage,Cl.MaxProfit,Cl.Periodicity]
+#ParameterList = [Cl.CurrentPrice,Cl.W1Slope,Cl.Average,Cl.CompToAverage,Cl.MaxProfit,Cl.Periodicity]
 
-MakeItemList(ParameterList)
+MakeItemList()
 
 #-----Main-----#
